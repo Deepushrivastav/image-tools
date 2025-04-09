@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pro Image Editor</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: #f0f2f5;
+      overflow: hidden;
+    }
+
+    .wrapper {
+      display: flex;
+      flex: 1;
+    }
+
+    aside {
+      width: 220px;
+      background: linear-gradient(180deg, #1e1e2f, #2e2e48);
+      color: white;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.3s ease-in-out;
+    }
+
+    aside h2 {
+      font-size: 1.5em;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    aside ul {
+      list-style: none;
+    }
+
+    aside ul li {
+      margin: 15px 0;
+      cursor: pointer;
+      padding: 10px;
+      border-radius: 8px;
+      transition: background 0.3s;
+    }
+
+    aside ul li:hover {
+      background: rgba(255,255,255,0.1);
+    }
+
+    main {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: white;
+      border-top-left-radius: 12px;
+    }
+
+    .tools {
+      margin-bottom: 15px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    input[type="file"], input[type="number"], button, select {
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    button:hover {
+      background: #45a049;
+      transform: scale(1.03);
+    }
+
+    #preview {
+      max-width: 100%;
+      max-height: 400px;
+      border: 2px dashed #ccc;
+      border-radius: 8px;
+      margin: 0 auto;
+      display: block;
+      cursor: crosshair;
+      transition: box-shadow 0.3s ease-in-out;
+    }
+
+    #preview:hover {
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    }
+
+    footer {
+      background: #1e1e2f;
+      color: white;
+      text-align: center;
+      padding: 10px;
+      font-size: 0.9em;
+    }
+
+    .about {
+      padding: 20px;
+      max-width: 800px;
+      margin: 30px auto;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      font-size: 16px;
+      line-height: 1.6;
+      text-align: center;
+    }
+
+    .about h3 {
+      margin-bottom: 10px;
+      color: #1e1e2f;
+    }
+
+    #cropArea {
+      position: absolute;
+      border: 2px dashed red;
+      display: none;
+      pointer-events: none;
+    }
+
+    @media (max-width: 768px) {
+      .wrapper { flex-direction: column; }
+      aside { width: 100%; flex-direction: row; justify-content: space-around; }
+      main { border-radius: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <aside>
+      <div>
+        <h2>Image Tool</h2>
+        <ul>
+          <li onclick="document.getElementById('upload').click()">📤 Upload Image</li>
+          <li onclick="resizeImage()">📐 Resize</li>
+          <li onclick="enableCrop()">✂️ Crop</li>
+          <li onclick="removeBackground()">🧼 Remove Background</li>
+          <li onclick="document.getElementById('bgUpload').click()">🖼️ Add Background</li>
+          <li onclick="applyFilter()">🎨 Apply Filter</li>
+          <li onclick="rotateImage()">🔄 Rotate</li>
+          <li onclick="flipImage()">↔️ Flip</li>
+          <li onclick="downloadImage()">📥 Download</li>
+        </ul>
+      </div>
+    </aside>
+
+    <main>
+      <div class="tools">
+        <input type="file" id="upload" accept="image/*">
+        <input type="number" id="width" placeholder="Width">
+        <input type="number" id="height" placeholder="Height">
+        <input type="file" id="bgUpload" accept="image/*">
+        <select id="filter" onchange="applyFilter()">
+          <option value="none">No Filter</option>
+          <option value="grayscale(100%)">Grayscale</option>
+          <option value="sepia(100%)">Sepia</option>
+          <option value="blur(2px)">Blur</option>
+        </select>
+      </div>
+
+      <img id="preview" src="" alt="Image Preview">
+      <div id="cropArea"></div>
+
+      <div class="about">
+        <h3>About Pro Image Editor</h3>
+        <p>
+          Pro Image Editor is a fast, lightweight, and easy-to-use online tool for basic image editing needs.
+          Whether you're resizing, cropping, flipping, or removing backgrounds, our editor gives you all the essential tools you need — right in your browser.
+          No downloads, no signups, just pure productivity.
+        </p>
+      </div>
+    </main>
+  </div>
+
+  <footer>
+    © 2025 Pro Image Editor. Built with ❤️ using HTML, CSS & JS.
+  </footer>
+
+  <canvas id="canvas" style="display:none;"></canvas>
+
+  <script>
+    const upload = document.getElementById('upload');
+    const preview = document.getElementById('preview');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const cropArea = document.getElementById('cropArea');
+    let image = new Image();
+    let imageDataURL = "";
+    let cropping = false;
+    let startX, startY, endX, endY;
+
+    upload.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        image.onload = () => {
+          canvas.width = image.width;
+          canvas.height = image.height;
+          ctx.drawImage(image, 0, 0);
+          imageDataURL = canvas.toDataURL();
+          preview.src = imageDataURL;
+        }
+        image.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    function enableCrop() {
+      cropping = true;
+      cropArea.style.display = 'block';
+      alert("Crop Mode Enabled: Drag on image");
+    }
+
+    preview.addEventListener("mousedown", (e) => {
+      if (!cropping) return;
+      const rect = preview.getBoundingClientRect();
+      startX = e.clientX - rect.left;
+      startY = e.clientY - rect.top;
+      cropArea.style.left = `${startX + rect.left}px`;
+      cropArea.style.top = `${startY + rect.top}px`;
+      cropArea.style.width = '0px';
+      cropArea.style.height = '0px';
+    });
+
+    preview.addEventListener("mousemove", (e) => {
+      if (!cropping) return;
+      const rect = preview.getBoundingClientRect();
+      endX = e.clientX - rect.left;
+      endY = e.clientY - rect.top;
+      const width = Math.abs(endX - startX);
+      const height = Math.abs(endY - startY);
+      cropArea.style.left = `${Math.min(startX, endX) + rect.left}px`;
+      cropArea.style.top = `${Math.min(startY, endY) + rect.top}px`;
+      cropArea.style.width = `${width}px`;
+      cropArea.style.height = `${height}px`;
+    });
+
+    preview.addEventListener("mouseup", (e) => {
+      if (!cropping) return;
+      cropArea.style.display = 'none';
+
+      const rect = preview.getBoundingClientRect();
+      endX = e.clientX - rect.left;
+      endY = e.clientY - rect.top;
+
+      const scaleX = canvas.width / preview.width;
+      const scaleY = canvas.height / preview.height;
+      const x = Math.min(startX, endX) * scaleX;
+      const y = Math.min(startY, endY) * scaleY;
+      const w = Math.abs(endX - startX) * scaleX;
+      const h = Math.abs(endY - startY) * scaleY;
+
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCanvas.width = w;
+      tempCanvas.height = h;
+      tempCtx.drawImage(canvas, x, y, w, h, 0, 0, w, h);
+
+      canvas.width = w;
+      canvas.height = h;
+      ctx.drawImage(tempCanvas, 0, 0);
+
+      imageDataURL = canvas.toDataURL();
+      preview.src = imageDataURL;
+      image.src = imageDataURL;
+      cropping = false;
+    });
+
+    function resizeImage() {
+      const width = parseInt(document.getElementById('width').value);
+      const height = parseInt(document.getElementById('height').value);
+      if (!width || !height) return alert("Enter width & height");
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(image, 0, 0, width, height);
+      imageDataURL = canvas.toDataURL();
+      preview.src = imageDataURL;
+      image.src = imageDataURL;
+    }
+
+    function removeBackground() {
+      canvas.width = image.width;
+      canvas.height = image.height;
+      ctx.drawImage(image, 0, 0);
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i+1], b = data[i+2];
+        if (r > 240 && g > 240 && b > 240) data[i + 3] = 0;
+      }
+      ctx.putImageData(imgData, 0, 0);
+      imageDataURL = canvas.toDataURL("image/png");
+      preview.src = imageDataURL;
+      image.src = imageDataURL;
+    }
+
+    document.getElementById("bgUpload").addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const bg = new Image();
+        bg.onload = () => {
+          canvas.width = bg.width;
+          canvas.height = bg.height;
+          ctx.drawImage(bg, 0, 0);
+          ctx.drawImage(image, 0, 0);
+          imageDataURL = canvas.toDataURL("image/png");
+          preview.src = imageDataURL;
+          image.src = imageDataURL;
+        };
+        bg.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    function applyFilter() {
+      const filter = document.getElementById("filter").value;
+      preview.style.filter = filter;
+    }
+
+    function rotateImage() {
+      canvas.width = image.height;
+      canvas.height = image.width;
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(Math.PI / 2);
+      ctx.drawImage(image, -image.width / 2, -image.height / 2);
+      ctx.restore();
+      imageDataURL = canvas.toDataURL();
+      preview.src = imageDataURL;
+      image.src = imageDataURL;
+    }
+
+    function flipImage() {
+      canvas.width = image.width;
+      canvas.height = image.height;
+      ctx.save();
+      ctx.scale(-1, 1);
+      ctx.drawImage(image, -image.width, 0);
+      ctx.restore();
+      imageDataURL = canvas.toDataURL();
+      preview.src = imageDataURL;
+      image.src = imageDataURL;
+    }
+
+    function downloadImage() {
+      if (!image.src) return alert("No image");
+      const link = document.createElement('a');
+      link.href = imageDataURL || image.src;
+      link.download = 'edited-image.png';
+      link.click();
+    }
+  </script>
+</body>
+</html>
